@@ -4,26 +4,25 @@ import plotly.graph_objects as go
 from matplotlib.dates import date2num
 from dash import Dash, dcc, html, Input, Output
 
-# Load your data
-file_path = r"C:\Users\cotero\OneDrive - Mortenson\Desktop\Data\PVC Clean2.csv"
+file_path = 'PVC Clean2.csv'
 df = pd.read_csv(file_path)
 
-# Strip any leading/trailing spaces from column names
+#strip any leading/trailing spaces from column names
 df.columns = df.columns.str.strip()
 
-# Convert "Order Date" to datetime
+#convert "Order Date" to datetime
 df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce', format='%m/%d/%Y')
 
-# Remove $ signs and commas from "Unit Price"
+#remove $ signs and commas from "Unit Price"
 df['Unit Price'] = df['Unit Price'].replace('[\$,]', '', regex=True).replace(',', '')
 
-# Convert to float
+#convert to float
 df['Unit Price'] = pd.to_numeric(df['Unit Price'], errors='coerce')
 
-# Ensure Quantity is a float and replace NaN with 0 for display purposes
+#ensure Quantity is a float and replace NaN with 0
 df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0)
 
-# Define skews to filter
+#define skews to filter
 skew_mapping = {
     (1.0, 10.0, 80.0): '1" by 10\' PVC Schedule 80',
     (2.0, 10.0, 40.0): '2" by 10\' PVC Schedule 40',
@@ -33,32 +32,31 @@ skew_mapping = {
     (8.0, 10.0, 40.0): '8" by 10\' PVC Schedule 40'   
 }
 
-# Filter rows that have non-null values for Inches, Feet, Schedule
+#filter rows that have non-null values for Inches, Feet, Schedule
 df_filtered = df[df.apply(lambda row: (row['Inches'], row['Feet'], row['Schedule']) in skew_mapping, axis=1)].copy()
 
-# Create a new column "Skew_Description"
+#create a new column "Skew_Description"
 df_filtered['Skew_Description'] = df_filtered.apply(lambda row: skew_mapping[(row['Inches'], row['Feet'], row['Schedule'])], axis=1)
 
-# Calculate the 33rd and 66th percentiles for Quantity
-low_threshold = df_filtered['Quantity'].quantile(0.25)
+low_threshold = df_filtered['Quantity'].quantile(0.50)
 high_threshold = df_filtered['Quantity'].quantile(0.50)
 
-# Function to categorize quantities
+#categorize quantities
 def categorize_quantity(quantity):
-    if quantity <= low_threshold:
+    if quantity < low_threshold:
         return 'Low'
     elif quantity <= high_threshold:
         return 'Medium'
     else:
         return 'High'
 
-# Apply the function to categorize quantities
+#apply the function to categorize quantities
 df_filtered['Quantity Category'] = df_filtered['Quantity'].apply(categorize_quantity)
 
-# Filter the DataFrame to include only "High" quantities
+#filter the DataFrame to include only high quantities
 df_high_quantities = df_filtered[df_filtered['Quantity Category'] == 'High'].copy()
 
-# Manually remove specific outliers
+#remove specific outliers
 outlier_condition = (
     (df_high_quantities['Skew_Description'] == '4" by 10\' PVC Schedule 40') &
     (df_high_quantities['Unit Price'] >= 80.00) &
@@ -75,19 +73,19 @@ outlier_condition_1 = (
     (df_high_quantities['Order Date'] <= pd.to_datetime('2022-07-30'))
 )
 
-# Combine outlier conditions
+#combine outlier conditions
 combined_outlier_condition = outlier_condition | outlier_condition_1
 
-# Remove the outliers
+#remove outliers
 df_high_quantities = df_high_quantities[~combined_outlier_condition]
 
-# Drop rows with NaN "Order Date" values
+#drop rows with NaN "Order Date" values
 df_high_quantities = df_high_quantities.dropna(subset=['Order Date'])
 
-# Convert "Order Date" to numerical format
+#convert "Order Date" to numerical format
 df_high_quantities['Order Date Num'] = date2num(df_high_quantities['Order Date'])
 
-# Calculate percent change for each skew
+#calculate percent change for each skew
 def calculate_percent_change(df, skew_description):
     df_skew = df[df['Skew_Description'] == skew_description].copy()
     if not df_skew.empty:
@@ -97,13 +95,14 @@ def calculate_percent_change(df, skew_description):
         df_skew['Starting Unit Price'] = start_value  # Keep track of the starting price
     return df_skew
 
-# Apply percent change calculation to all skews
+#apply percent change calculation to all skews
 df_percent_change = pd.concat([calculate_percent_change(df_high_quantities, skew) for skew in skew_mapping.values()])
 
-# Initialize the Dash app
+#initialize the Dash app
 app = Dash(__name__)
+server = app.server
 
-# Define the layout of the app
+#define app layout
 app.layout = html.Div([
     dcc.Dropdown(
         id='supplier-dropdown',
@@ -130,7 +129,7 @@ def update_graph(selected_supplier):
     else:
         filtered_data = df_percent_change[df_percent_change['SUPPLIER'] == selected_supplier]
 
-    # Recalculate regression lines for the filtered data
+    #recalculate regression lines for the filtered data
     regression_lines = []
     for skew in skew_mapping.values():
         skew_data = filtered_data[filtered_data['Skew_Description'] == skew]
@@ -150,10 +149,9 @@ def update_graph(selected_supplier):
             print(f"Not enough data points for skew {skew}")
 
 
-    # Create the plot
     fig = go.Figure()
 
-    # Add scatter plots for each skew with percent change
+    #add scatter plots for each skew with percent change
     for skew in skew_mapping.values():
         skew_data = filtered_data[filtered_data['Skew_Description'] == skew]
         fig.add_trace(go.Scatter(
@@ -167,7 +165,7 @@ def update_graph(selected_supplier):
             hovertemplate='<b>Supplier</b>: %{text}<br><b>Unit Price</b>: $%{customdata[0]:.2f}<br><b>Percent Change</b>: %{y:.2f}%<br><b>Quantity</b>: %{customdata[1]:,}<br><b>Date</b>: %{x}'
         ))
 
-    # Add regression lines for percent change for each skew
+    #add regression lines for percent change for each skew
     for skew, slope, intercept, starting_price in regression_lines:
         skew_data = filtered_data[filtered_data['Skew_Description'] == skew]
         regression_x = pd.date_range(start=skew_data['Order Date'].min(), end=skew_data['Order Date'].max())
@@ -184,8 +182,6 @@ def update_graph(selected_supplier):
         ))
 
 
-
-    # Customize the plot
     fig.update_layout(
         title='Percent Change in Unit Price Over Time for PVC Types',
         xaxis_title='Order Date',
