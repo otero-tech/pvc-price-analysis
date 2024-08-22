@@ -9,26 +9,25 @@ from matplotlib.ticker import FuncFormatter
 import matplotlib.dates as mdates
 import plotly.graph_objects as go
 
-file_path = r"C:\Users\cotero\OneDrive - Mortenson\Desktop\Data\PVC Clean2.csv"
+file_path = 'PVC Clean2.csv'
 df = pd.read_csv(file_path)
 
-# Assuming df_high_quantities is your filtered DataFrame
-# Strip any leading/trailing spaces from column names
+#strip any leading/trailing spaces from column names
 df.columns = df.columns.str.strip()
 
-# Convert "Order Date" to datetime
+#convert "Order Date" to datetime
 df['Order Date'] = pd.to_datetime(df['Order Date'], errors='coerce', format='%m/%d/%Y')
 
-# Remove $ signs and commas from "Unit Price"
+#remove $ signs and commas from "Unit Price"
 df['Unit Price'] = df['Unit Price'].replace('[\$,]', '', regex=True).replace(',', '')
 
-# Convert to float
+#convert to float
 df['Unit Price'] = pd.to_numeric(df['Unit Price'], errors='coerce')
 
-# Convert "Quantity" to int
+#convert "Quantity" to int
 df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce')
 
-# Define skews to filter
+#define skews to filter
 skew_mapping = {
     (4.0, 10.0, 40.0): '4" by 10\' PVC Schedule 40',
     (8.0, 10.0, 40.0): '8" by 10\' PVC Schedule 40',
@@ -38,29 +37,29 @@ skew_mapping = {
     (6.0, 10.0, 40.0): '6" by 10\' PVC Schedule 40'
 }
 
-# Filter rows that have non-null values for Inches, Feet, Schedule
+#filter rows that have non-null values for Inches, Feet, Schedule
 df_filtered = df[df.apply(lambda row: (row['Inches'], row['Feet'], row['Schedule']) in skew_mapping, axis=1)].copy()
 
-# Create new column "Skew_Description"
+#create new column "Skew_Description"
 df_filtered['Skew_Description'] = df_filtered.apply(lambda row: skew_mapping[(row['Inches'], row['Feet'], row['Schedule'])], axis=1)
 
-# Calculate the 33rd and 66th percentiles for Quantity
+#calculate low & high quantities
 low_threshold = df_filtered['Quantity'].quantile(0.5)
 
-# Function to categorize quantities
+#categorize quantities
 def categorize_quantity(quantity):
     if quantity < low_threshold:
         return 'Low'
     else:
         return 'High'
 
-# Apply the function
+#apply function
 df_filtered['Quantity Category'] = df_filtered['Quantity'].apply(categorize_quantity)
 
-# Filter the DataFrame to include only specified quantity
+#filter the DataFrame to include only high quantity
 df_high_quantities = df_filtered[df_filtered['Quantity Category'] == 'High'].copy()
 
-# Manually remove specific outliers
+#remove specific outliers
 outlier_condition = (
     (df_high_quantities['Skew_Description'] == '4" by 10\' PVC Schedule 40') &
     (df_high_quantities['Unit Price'] >= 80.00) &
@@ -77,19 +76,19 @@ outlier_condition_1 = (
     (df_high_quantities['Order Date'] <= pd.to_datetime('2022-07-30'))
 )
 
-# Combine outlier conditions
+#combine outlier conditions
 combined_outlier_condition = outlier_condition | outlier_condition_1
 
-# Remove the outliers
+#remove outliers
 df_high_quantities = df_high_quantities[~combined_outlier_condition]
 
-# Drop rows with NaN "Order Date" values
+#drop rows with NaN "Order Date" values
 df_high_quantities = df_high_quantities.dropna(subset=['Order Date'])
 
-# Convert "Order Date" to numerical format
+#convert "Order Date" to numerical format
 df_high_quantities['Order Date Num'] = date2num(df_high_quantities['Order Date'])
 
-# Define legend order and color palette
+#define legend order and color palette
 legend_order = [
     '1" by 10\' PVC Schedule 80',
     '2" by 10\' PVC Schedule 40',
@@ -108,11 +107,11 @@ color_palette = {
     '6" by 10\' PVC Schedule 40': '#27272B'
 }
 
-# Initialize the Dash app
+#initialize Dash app
 app = Dash(__name__)
 server = app.server
 
-# Define the layout of the app
+#define layout of app
 app.layout = html.Div([
     dcc.Dropdown(
         id='supplier-dropdown',
@@ -139,7 +138,7 @@ def update_graph(selected_supplier):
     else:
         filtered_data = df_high_quantities[df_high_quantities['SUPPLIER'] == selected_supplier]
 
-    # Calculate regression lines for the filtered data
+    #calculate regression lines for filtered data
     regression_lines = []
     for skew in legend_order:
         skew_data = filtered_data[filtered_data['Skew_Description'] == skew]
@@ -157,10 +156,9 @@ def update_graph(selected_supplier):
         else:
             print(f"Not enough data points for skew {skew}")
 
-    # Create the plot
     fig = go.Figure()
 
-    # Add scatter plots for each skew
+    #add scatter plots for each skew
     for skew in legend_order:
         skew_data = filtered_data[filtered_data['Skew_Description'] == skew]
         fig.add_trace(go.Scatter(
@@ -173,7 +171,7 @@ def update_graph(selected_supplier):
             hovertemplate='<b>Supplier</b>: %{text}<br><b>Price</b>: $%{y:.2f}<br><b>Date</b>: %{x}'
         ))
 
-    # Add regression lines for each skew
+    #add regression lines for each skew
     for skew, slope, intercept in regression_lines:
         skew_data = filtered_data[filtered_data['Skew_Description'] == skew]
         regression_x = pd.date_range(start=skew_data['Order Date'].min(), end=skew_data['Order Date'].max())
@@ -186,7 +184,6 @@ def update_graph(selected_supplier):
             line=dict(dash='solid', color=color_palette[skew])
         ))
 
-    # Customize the plot
     fig.update_layout(
         title='Unit Price Trends Over Time for PVC Types',
         xaxis_title='Order Date',
