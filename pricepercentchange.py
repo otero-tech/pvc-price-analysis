@@ -90,6 +90,25 @@ df_high_quantities = df_high_quantities.dropna(subset=['Order Date'])
 #convert "Order Date" to numerical format
 df_high_quantities['Order Date Num'] = date2num(df_high_quantities['Order Date'])
 
+#define legend order and color palette
+legend_order = [
+    '1" by 10\' PVC Schedule 80',
+    '2" by 10\' PVC Schedule 40',
+    '4" by 10\' PVC Schedule 40',
+    '4" by 10\' PVC Schedule 80',
+    '6" by 10\' PVC Schedule 40',
+    '8" by 10\' PVC Schedule 40'
+]
+
+color_palette = {
+    '2" by 10\' PVC Schedule 40': '#008000',    
+    '4" by 10\' PVC Schedule 40': '#0000ff',    
+    '4" by 10\' PVC Schedule 80': '#ff0000',    
+    '1" by 10\' PVC Schedule 80': '#ffa500',    
+    '8" by 10\' PVC Schedule 40': '#ee82ee',
+    '6" by 10\' PVC Schedule 40': '#27272B'
+}
+
 #calculate percent change for each skew
 def calculate_percent_change(df, skew_description):
     df_skew = df[df['Skew_Description'] == skew_description].copy()
