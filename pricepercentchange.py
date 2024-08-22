@@ -3,6 +3,11 @@ import numpy as np
 import plotly.graph_objects as go
 from matplotlib.dates import date2num
 from dash import Dash, dcc, html, Input, Output
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.ticker import FuncFormatter
+import matplotlib.dates as mdates
+import plotly.graph_objects as go
 
 file_path = 'PVC Clean2.csv'
 df = pd.read_csv(file_path)
